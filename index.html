@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>VriesArtificial — AI Prompt Generator</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  * { font-family: 'Space Grotesk', sans-serif; }
+  body { background: #05060a; color: #e5e7eb; overflow-x: hidden; }
+
+  /* Loading Screen */
+  #loadingScreen {
+    position: fixed; inset: 0; z-index: 9999;
+    background: #05060a;
+    display: flex; align-items: center; justify-content: center;
+    flex-direction: column;
+    transition: opacity 0.8s ease;
+  }
+  #loadingScreen video {
+    position: absolute; inset: 0;
+    width: 100%; height: 100%; object-fit: cover;
+    opacity: 0.45;
+  }
+  #loadingScreen .overlay {
+    position: absolute; inset: 0;
+    background: radial-gradient(circle at center, rgba(5,6,10,0.3), #05060a 85%);
+  }
+  .load-content { position: relative; z-index: 2; text-align: center; }
+  .brand-glow {
+    font-size: 2.6rem; font-weight: 700; letter-spacing: 0.15em;
+    background: linear-gradient(90deg,#22d3ee,#a855f7,#22d3ee);
+    background-size: 200% auto;
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    animation: shine 3s linear infinite;
+  }
+  @keyframes shine { to { background-position: 200% center; } }
+
+  .progress-bar {
+    width: 260px; height: 3px; background: rgba(255,255,255,0.1);
+    border-radius: 99px; margin: 24px auto 0; overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%; width: 0%;
+    background: linear-gradient(90deg,#22d3ee,#a855f7);
+    transition: width 0.2s linear;
+  }
+
+  /* Glass card */
+  .glass {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.08);
+    backdrop-filter: blur(14px);
+    border-radius: 20px;
+  }
+
+  .option-card {
+    cursor: pointer;
+    transition: all 0.35s cubic-bezier(.2,.8,.2,1);
+    position: relative; overflow: hidden;
+  }
+  .option-card::before {
+    content:""; position:absolute; inset:0;
+    background: linear-gradient(135deg, rgba(34,211,238,0.15), rgba(168,85,247,0.15));
+    opacity: 0; transition: opacity 0.35s;
+  }
+  .option-card:hover { transform: translateY(-6px); border-color: rgba(34,211,238,0.5); }
+  .option-card:hover::before { opacity: 1; }
+
+  .hidden-view { display: none !important; }
+
+  .fade-in { animation: fadeIn 0.6s ease both; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(12px);} to {opacity:1; transform:none;} }
+
+  input, textarea, select {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.1);
+    color: #fff;
+  }
+  input:focus, textarea:focus, select:focus {
+    outline: none; border-color: #22d3ee;
+    box-shadow: 0 0 0 3px rgba(34,211,238,0.15);
+  }
+
+  .btn-primary {
+    background: linear-gradient(90deg,#22d3ee,#a855f7);
+    transition: all 0.3s;
+  }
+  .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 10px 30px -10px #a855f7; }
+
+  .grid-bg {
+    background-image:
+      linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
+    background-size: 44px 44px;
+  }
+</style>
+</head>
+<body class="grid-bg">
+
+<!-- ============ LOADING SCREEN ============ -->
+<div id="loadingScreen">
+  <!-- GANTI VIDEO URL DI SINI -->
+  <video autoplay muted loop playsinline>
+    <source src="YOUR_VIDEO_URL" type="video/mp4">
+  </video>
+  <div class="overlay"></div>
+  <div class="load-content">
+    <div class="brand-glow">VRIES ARTIFICIAL</div>
+    <p class="text-gray-400 mt-3 text-sm tracking-widest">MEMPERSIAPKAN SISTEM AI...</p>
+    <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+    <p class="text-xs text-gray-500 mt-3" id="loadPercent">0%</p>
+  </div>
+</div>
+
+<!-- ============ LOGIN ============ -->
+<div id="loginView" class="hidden-view min-h-screen flex items-center justify-center px-6">
+  <div class="glass p-10 max-w-md w-full text-center fade-in">
+    <div class="text-3xl font-bold bg-gradient-to-r from-cyan-400 to-purple-500 bg-clip-text text-transparent mb-2">VriesArtificial</div>
+    <p class="text-gray-400 mb-8 text-sm">Masuk untuk mengakses AI Prompt Generator</p>
+    <div id="g_id_onload"></div>
+    <div id="buttonDiv" class="flex justify-center"></div>
+    <p class="text-xs text-gray-500 mt-8">Dengan masuk, Anda menyetujui Ketentuan Layanan kami.</p>
+  </div>
+</div>
+
+<!-- ============ MENU UTAMA ============ -->
+<div id="menuView" class="hidden-view min-h-screen px-6 py-8">
+  <header class="max-w-6xl mx-auto flex items-center justify-between mb-12">
+    <div class="text-xl font-bold bg-gradient-to-r from-cyan-400 to-purple-500 bg-clip-text text-transparent">VriesArtificial</div>
+    <div class="flex items-center gap-4">
+      <img id="userAvatar" class="w-9 h-9 rounded-full border border-white/20" />
+      <span id="userName" class="text-sm text-gray-300 hidden sm:block"></span>
+      <button onclick="logout()" class="text-xs px-3 py-2 rounded-lg border border-white/10 hover:border-cyan-400 transition">Logout</button>
+    </div>
+  </header>
+
+  <main class="max-w-6xl mx-auto fade-in">
+    <h1 class="text-3xl sm:text-4xl font-bold mb-2">Pilih Jenis Prompt</h1>
+    <p class="text-gray-400 mb-10">Pilih kategori yang ingin Anda generate.</p>
+
+    <div class="grid md:grid-cols-3 gap-6">
+      <div class="option-card glass p-7" onclick="openForm('video')">
+        <div class="text-4xl mb-4">🎬</div>
+        <h3 class="text-lg font-semibold mb-2">Video AI Generator</h3>
+        <p class="text-sm text-gray-400">Buat prompt untuk generator video AI (Sora, Runway, dll).</p>
+      </div>
+
+      <div class="option-card glass p-7" onclick="openForm('photo')">
+        <div class="text-4xl mb-4">🧑‍🎨</div>
+        <h3 class="text-lg font-semibold mb-2">Photo Subjek / Karakter</h3>
+        <p class="text-sm text-gray-400">Prompt untuk membuat foto subjek atau karakter dengan detail.</p>
+      </div>
+
+      <div class="option-card glass p-7" onclick="openForm('background')">
+        <div class="text-4xl mb-4">🌄</div>
+        <h3 class="text-lg font-semibold mb-2">Background Subjek</h3>
+        <p class="text-sm text-gray-400">Prompt untuk background / environment subjek Anda.</p>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- ============ FORM VIEW ============ -->
+<div id="formView" class="hidden-view min-h-screen px-6 py-8">
+  <header class="max-w-4xl mx-auto flex items-center justify-between mb-10">
+    <button onclick="backToMenu()" class="text-sm text-gray-400 hover:text-cyan-400 transition">← Kembali</button>
+    <div class="text-xl font-bold bg-gradient-to-r from-cyan-400 to-purple-500 bg-clip-text text-transparent">VriesArtificial</div>
+  </header>
+
+  <div class="max-w-4xl mx-auto glass p-8 fade-in" id="formCard">
+    <!-- diisi JS -->
+  </div>
+</div>
+
+<script>
+/* ================== LOADING ================== */
+const loadDuration = 7000; // 7 detik
+const start = Date.now();
+const fill = document.getElementById('progressFill');
+const pct = document.getElementById('loadPercent');
+
+const tick = setInterval(() => {
+  const elapsed = Date.now() - start;
+  const p = Math.min(100, (elapsed / loadDuration) * 100);
+  fill.style.width = p + '%';
+  pct.textContent = Math.floor(p) + '%';
+  if (p >= 100) {
+    clearInterval(tick);
+    setTimeout(finishLoading, 300);
+  }
+}, 50);
+
+function finishLoading() {
+  const ls = document.getElementById('loadingScreen');
+  ls.style.opacity = '0';
+  setTimeout(() => {
+    ls.style.display = 'none';
+    checkAuth();
+  }, 800);
+}
+
+/* ================== AUTH ================== */
+const CLIENT_ID = "353730553969-pttjtha7tuqo6oc3rfvf8t87c0h8jbho.apps.googleusercontent.com" // ganti!
+
+window.onload = () => {
+  if (!window.google) return;
+  google.accounts.id.initialize({
+    client_id: CLIENT_ID,
+    callback: handleCredentialResponse
+  });
+  google.accounts.id.renderButton(
+    document.getElementById("buttonDiv"),
+    { theme: "filled_black", size: "large", shape: "pill", text: "signin_with" }
+  );
+};
+
+function handleCredentialResponse(response) {
+  const payload = JSON.parse(atob(response.credential.split('.')[1]));
+  localStorage.setItem('vries_user', JSON.stringify({
+    name: payload.name, picture: payload.picture, email: payload.email
+  }));
+  showMenu();
+}
+
+function checkAuth() {
+  const user = JSON.parse(localStorage.getItem('vries_user') || 'null');
+  if (user) showMenu();
+  else showView('loginView');
+}
+
+function showView(id) {
+  ['loginView','menuView','formView'].forEach(v => {
+    document.getElementById(v).classList.add('hidden-view');
+  });
+  document.getElementById(id).classList.remove('hidden-view');
+}
+
+function showMenu() {
+  const user = JSON.parse(localStorage.getItem('vries_user'));
+  if (user) {
+    document.getElementById('userName').textContent = user.name;
+    document.getElementById('userAvatar').src = user.picture;
+  }
+  showView('menuView');
+}
+
+function logout() {
+  localStorage.removeItem('vries_user');
+  if (window.google) google.accounts.id.disableAutoSelect();
+  showView('loginView');
+}
+
+/* ================== FORM DEFINITIONS ================== */
+const FORMS = {
+  video: {
+    title: "🎬 Video AI Prompt Generator",
+    desc: "Isi detail untuk menghasilkan prompt video AI.",
+    fields: [
+      { id: "subject", label: "Subjek Utama", ph: "cth: seorang astronot berjalan di planet merah" },
+      { id: "action", label: "Aksi / Gerakan", ph: "cth: berjalan perlahan sambil melihat ke langit" },
+      { id: "setting", label: "Lokasi / Setting", ph: "cth: gurun Mars saat senja" },
+      { id: "style", label: "Gaya Visual", type: "select", options: ["Cinematic","Realistic","Anime","3D Render","Documentary","Cyberpunk"] },
+      { id: "camera", label: "Gerakan Kamera", type: "select", options: ["Static","Slow Pan","Dolly In","Drone Shot","Handheld","Tracking"] },
+      { id: "lighting", label: "Pencahayaan", ph: "cth: golden hour, volumetric light" },
+      { id: "duration", label: "Durasi (detik)", type: "number", ph: "10" },
+      { id: "ratio", label: "Aspect Ratio", type: "select", options: ["16:9","9:16","1:1","21:9"] }
+    ]
+  },
+  photo: {
+    title: "🧑‍🎨 Photo Subjek / Karakter Prompt",
+    desc: "Buat prompt foto/karakter dengan detail tinggi.",
+    fields: [
+      { id: "character", label: "Nama / Deskripsi Karakter", ph: "cth: wanita Asia berusia 25 tahun" },
+      { id: "expression", label: "Ekspresi", ph: "cth: tersenyum lembut" },
+      { id: "outfit", label: "Pakaian / Kostum", ph: "cth: jaket kulit hitam vintage" },
+      { id: "pose", label: "Pose", ph: "cth: berdiri dengan tangan disilang" },
+      { id: "style", label: "Gaya", type: "select", options: ["Photorealistic","Portrait Studio","Cinematic","Editorial","Anime","Oil Painting"] },
+      { id: "lighting", label: "Pencahayaan", ph: "cth: softbox studio lighting" },
+      { id: "lens", label: "Lensa / Kamera", ph: "cth: 85mm f/1.4" },
+      { id: "mood", label: "Mood / Nuansa", ph: "cth: misterius, elegan" }
+    ]
+  },
+  background: {
+    title: "🌄 Background Subjek Prompt",
+    desc: "Prompt untuk background / environment.",
+    fields: [
+      { id: "location", label: "Lokasi", ph: "cth: hutan pinus berkabut" },
+      { id: "time", label: "Waktu", type: "select", options: ["Pagi","Siang","Senja","Malam","Golden Hour","Blue Hour"] },
+      { id: "weather", label: "Cuaca", type: "select", options: ["Cerah","Berawan","Hujan","Bersalju","Berkabut","Badai"] },
+      { id: "elements", label: "Elemen Tambahan", ph: "cth: sungai kecil, bebatuan lumut" },
+      { id: "style", label: "Gaya", type: "select", options: ["Realistic","Fantasy","Sci-Fi","Studio","Minimalist","Vintage"] },
+      { id: "depth", label: "Depth of Field", type: "select", options: ["Shallow","Medium","Deep"] },
+      { id: "color", label: "Palet Warna", ph: "cth: teal & orange" }
+    ]
+  }
+};
+
+let currentType = null;
+
+function openForm(type) {
+  currentType = type;
+  const cfg = FORMS[type];
+  const card = document.getElementById('formCard');
+  card.innerHTML = `
+    <h2 class="text-2xl font-bold mb-1">${cfg.title}</h2>
+    <p class="text-sm text-gray-400 mb-6">${cfg.desc}</p>
+    <form id="promptForm" class="grid sm:grid-cols-2 gap-4"></form>
+    <div class="mt-6 flex gap-3">
+      <button form="promptForm" type="submit" class="btn-primary px-6 py-3 rounded-xl font-semibold text-white">Generate Prompt</button>
+      <button type="button" onclick="resetForm()" class="px-6 py-3 rounded-xl border border-white/10 hover:border-cyan-400 transition">Reset</button>
+    </div>
+    <div id="resultBox" class="hidden-view mt-8"></div>
+  `;
+
+  const form = document.getElementById('promptForm');
+  cfg.fields.forEach(f => {
+    const wrap = document.createElement('div');
+    wrap.className = f.type === 'select' || f.id === 'elements' ? 'sm:col-span-1' : 'sm:col-span-1';
+    let inner = `<label class="block text-xs uppercase tracking-wider text-gray-400 mb-2">${f.label}</label>`;
+    if (f.type === 'select') {
+      inner += `<select id="f_${f.id}" class="w-full px-4 py-3 rounded-xl text-sm">
+        <option value="">-- pilih --</option>
+        ${f.options.map(o=>`<option>${o}</option>`).join('')}
+      </select>`;
+    } else {
+      inner += `<input id="f_${f.id}" type="${f.type||'text'}" placeholder="${f.ph||''}" class="w-full px-4 py-3 rounded-xl text-sm"/>`;
+    }
+    wrap.innerHTML = inner;
+    form.appendChild(wrap);
+  });
+
+  form.addEventListener('submit', e => {
+    e.preventDefault();
+    generatePrompt();
+  });
+
+  showView('formView');
+}
+
+function resetForm() {
+  document.getElementById('promptForm').reset();
+  document.getElementById('resultBox').classList.add('hidden-view');
+}
+
+function generatePrompt() {
+  const cfg = FORMS[currentType];
+  const data = {};
+  cfg.fields.forEach(f => {
+    const el = document.getElementById('f_' + f.id);
+    data[f.id] = el.value.trim();
+  });
+
+  let prompt = buildPrompt(currentType, data);
+  const box = document.getElementById('resultBox');
+  box.classList.remove('hidden-view');
+  box.innerHTML = `
+    <div class="glass p-6 fade-in">
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="text-sm uppercase tracking-widest text-cyan-400">✨ Prompt Hasil</h3>
+        <button onclick="copyPrompt()" class="text-xs px-3 py-1.5 rounded-lg border border-white/10 hover:border-cyan-400 transition">Copy</button>
+      </div>
+      <p id="promptText" class="text-gray-200 leading-relaxed text-sm whitespace-pre-line">${prompt}</p>
+    </div>
+  `;
+}
+
+function buildPrompt(type, d) {
+  if (type === 'video') {
+    return `A ${d.style||'cinematic'} video of ${d.subject||'[subject]'} ${d.action||''}, set in ${d.setting||'[setting]'}. Camera: ${d.camera||'static shot'}. Lighting: ${d.lighting||'natural'}. Aspect ratio ${d.ratio||'16:9'}, duration ${d.duration||10} seconds. High detail, film grain, professional color grading.`;
+  }
+  if (type === 'photo') {
+    return `Portrait photograph of ${d.character||'[character]'}, expression: ${d.expression||'neutral'}, wearing ${d.outfit||'[outfit]'}, pose: ${d.pose||'standing'}. Style: ${d.style||'photorealistic'}. Lighting: ${d.lighting||'soft studio'}. Shot with ${d.lens||'85mm lens'}. Mood: ${d.mood||'cinematic'}. Ultra detailed, 8K, sharp focus.`;
+  }
+  if (type === 'background') {
+    return `${d.style||'realistic'} background of ${d.location||'[location]'} during ${d.time||'daytime'}, weather: ${d.weather||'clear'}. Additional elements: ${d.elements||'none'}. Color palette: ${d.color||'natural'}. Depth of field: ${d.depth||'medium'}. Environment concept art, highly detailed, cinematic composition.`;
+  }
+  return '';
+}
+
+function copyPrompt() {
+  const text = document.getElementById('promptText').innerText;
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = event.target;
+    const old = btn.innerText;
+    btn.innerText = "Copied!";
+    setTimeout(()=>btn.innerText=old, 1500);
+  });
+}
+
+function backToMenu() {
+  showMenu();
+}
+</script>
+</body>
+</html>
